@@ -31,16 +31,22 @@ function Countdown() {
 
 function WatchRow({ item, checked, onToggle }: { item: WatchItem; checked: boolean; onToggle: () => void }) {
   const [open, setOpen] = useState(false)
+  const [showSpoilers, setShowSpoilers] = useState(false)
   return <article className={`watch-row ${checked ? 'is-watched' : ''}`}>
     <button className="check" onClick={onToggle} aria-label={checked ? `Marcar ${item.title} como pendiente` : `Marcar ${item.title} como vista`} aria-pressed={checked}>{checked && <Check weight="bold" />}</button>
     <button className="row-main" onClick={() => setOpen(!open)} aria-expanded={open}>
       <span className="row-index">{String(watchlist.indexOf(item) + 1).padStart(2,'0')}</span>
-      <span className="row-title"><strong>{item.title}</strong><small>{item.year} · {item.minutes ? `${Math.floor(item.minutes/60)} h ${item.minutes%60} min` : 'Próximamente'}</small></span>
+      <span className="row-title"><strong>{item.title}</strong>{item.latamTitle && item.latamTitle !== item.title && <small className="latam-title">En Latinoamérica: {item.latamTitle}</small>}<small>{item.year} · {item.minutes ? `${Math.floor(item.minutes/60)} h ${item.minutes%60} min` : 'Próximamente'}</small></span>
       <span className={`priority ${item.priority}`}>{item.priority}</span>
       {item.kind === 'serie' ? <Television /> : <FilmSlate />}
     </button>
     <AnimatePresence initial={false}>{open && <motion.div className="row-detail" initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}>
-      <p>{item.note}</p>
+      <p className="summary">{item.note}</p>
+      {item.watchFor && <div className="watch-for"><b>Pon atención a</b><p>{item.watchFor}</p></div>}
+      {item.tieIn && <div className="spoiler-block">
+        <button onClick={() => setShowSpoilers(!showSpoilers)} aria-expanded={showSpoilers}>{showSpoilers ? 'Ocultar conexión' : 'Revelar cómo conecta'} <span>Contiene spoilers</span></button>
+        <AnimatePresence initial={false}>{showSpoilers && <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}><b>Cómo conecta</b><p>{item.tieIn}</p></motion.div>}</AnimatePresence>
+      </div>}
       {item.watchUrl ? <a href={item.watchUrl} target="_blank" rel="noreferrer">Ver en plataforma oficial</a> : <span className="unavailable">Enlace de reproducción pendiente</span>}
     </motion.div>}</AnimatePresence>
   </article>
@@ -101,7 +107,7 @@ export default function App() {
     </section>
 
     <section className="route" id="ruta">
-      <header><h2>Tu ruta hacia el estreno</h2><p>Marca cada título al terminar. El avance queda guardado únicamente en este dispositivo.</p></header>
+      <header><h2>Tu ruta hacia el estreno</h2><p>Marca cada título al terminar. Abre una ficha para encontrar guiños sin spoilers y conexiones protegidas por advertencia.</p></header>
       <div className="controls">
         <label className="search"><MagnifyingGlass/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar un título" aria-label="Buscar un título"/></label>
         <select value={kind} onChange={e => setKind(e.target.value as typeof kind)} aria-label="Filtrar por formato"><option value="todo">Películas y series</option><option value="pelicula">Solo películas</option><option value="serie">Solo series</option></select>
