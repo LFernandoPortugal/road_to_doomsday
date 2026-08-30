@@ -1,7 +1,7 @@
 {
-  "name": "Ruta al Fin",
-  "short_name": "Ruta al Fin",
-  "description": "Tu ruta de visionado hacia el gran final.",
+  "name": "Maratón para Doomsday",
+  "short_name": "Maratón Doomsday",
+  "description": "Tu maratón del UCM hacia Avengers: Doomsday.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#07090d",

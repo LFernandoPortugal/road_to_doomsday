@@ -1,5 +1,12 @@
 export type Kind = 'pelicula' | 'serie'
 export type Priority = 'esencial' | 'recomendada' | 'opcional'
+export type RegionCode = 'latam' | 'pe' | 'co' | 'ec' | 'mx' | 'other'
+
+export type WatchLink = {
+  label: string
+  url: string
+  access: 'gratis' | 'suscripcion' | 'alquiler' | 'compra'
+}
 
 export type WatchItem = {
   id: string
@@ -14,6 +21,7 @@ export type WatchItem = {
   watchFor?: string
   tieIn?: string
   watchUrl?: string
+  watchLinks?: Partial<Record<RegionCode, WatchLink[]>>
 }
 
 const film = (id: string, title: string, year: number, minutes: number, priority: Priority, saga: string, note: string): WatchItem => ({ id, title, year, minutes, priority, saga, note, kind: 'pelicula' })

@@ -1,6 +1,6 @@
-# Ruta al Fin
+# Maratón para Doomsday
 
-Guía de visionado interactiva en español, inspirada en el objetivo funcional de Road to Doomsday pero con identidad, textos y arte originales.
+Guía de visionado interactiva para la comunidad latina, inspirada en el objetivo funcional de Road to Doomsday pero con identidad, textos y arte originales.
 
 ## Desarrollo
 
@@ -9,7 +9,9 @@ npm install
 npm run dev
 ```
 
-El catálogo vive en `src/data.ts`. Cada entrada admite un `watchUrl` opcional. Solo debe usarse para contenido propio, de dominio público, con licencia de distribución o para enlazar una plataforma oficial.
+El catálogo vive en `src/data.ts`. Cada entrada admite `watchLinks` por región (`latam`, `pe`, `co`, `ec`, `mx` y `other`). Solo debe usarse para contenido propio, de dominio público, con licencia de distribución o para enlazar una plataforma oficial.
+
+El apoyo comunitario está conectado a `https://ko-fi.com/falconblade`.
 
 ## Publicación gratuita
 
@@ -21,7 +23,6 @@ No es recomendable usar Google Drive para servir películas comerciales: los enl
 
 ## Pendientes antes del lanzamiento
 
-- Sustituir el enlace genérico de Ko-fi en `src/App.tsx` por la cuenta real.
 - Revisar años, duraciones y prioridad editorial.
 - Añadir enlaces oficiales por título y país cuando estén disponibles.
 - Conectar dominio y analítica respetuosa de privacidad si se desea.

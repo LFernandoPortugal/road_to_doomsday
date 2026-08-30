@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, Check, Clock, FilmSlate, Funnel, Heart, MagnifyingGlass, ShareNetwork, Television, X } from '@phosphor-icons/react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { sagas, watchlist, type Priority, type WatchItem } from './data'
+import { sagas, watchlist, type Priority, type RegionCode, type WatchItem } from './data'
 
 const RELEASE = new Date('2026-12-18T00:00:00-05:00')
 const STORAGE_KEY = 'ruta-al-fin-progress-v1'
+const REGION_KEY = 'maraton-doomsday-region-v1'
+const SUPPORT_URL = 'https://ko-fi.com/falconblade'
+const regionNames: Record<RegionCode, string> = { latam:'Latinoamérica', pe:'Perú', co:'Colombia', ec:'Ecuador', mx:'México', other:'Otro país' }
 
 function useStoredProgress() {
   const [watched, setWatched] = useState<Record<string, boolean>>(() => {
@@ -29,9 +32,10 @@ function Countdown() {
   </div>
 }
 
-function WatchRow({ item, checked, onToggle }: { item: WatchItem; checked: boolean; onToggle: () => void }) {
+function WatchRow({ item, checked, onToggle, region }: { item: WatchItem; checked: boolean; onToggle: () => void; region: RegionCode }) {
   const [open, setOpen] = useState(false)
   const [showSpoilers, setShowSpoilers] = useState(false)
+  const regionalLinks = item.watchLinks?.[region] || item.watchLinks?.latam || []
   return <article className={`watch-row ${checked ? 'is-watched' : ''}`}>
     <button className="check" onClick={onToggle} aria-label={checked ? `Marcar ${item.title} como pendiente` : `Marcar ${item.title} como vista`} aria-pressed={checked}>{checked && <Check weight="bold" />}</button>
     <button className="row-main" onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -47,7 +51,7 @@ function WatchRow({ item, checked, onToggle }: { item: WatchItem; checked: boole
         <button onClick={() => setShowSpoilers(!showSpoilers)} aria-expanded={showSpoilers}>{showSpoilers ? 'Ocultar conexión' : 'Revelar cómo conecta'} <span>Contiene spoilers</span></button>
         <AnimatePresence initial={false}>{showSpoilers && <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}><b>Cómo conecta</b><p>{item.tieIn}</p></motion.div>}</AnimatePresence>
       </div>}
-      {item.watchUrl ? <a href={item.watchUrl} target="_blank" rel="noreferrer">Ver en plataforma oficial</a> : <span className="unavailable">Enlace de reproducción pendiente</span>}
+      <div className="availability"><b>Dónde ver en {regionNames[region]}</b>{regionalLinks.length ? <div>{regionalLinks.map(link => <a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.label} <span>{link.access}</span></a>)}</div> : item.watchUrl ? <a href={item.watchUrl} target="_blank" rel="noreferrer">Ver en plataforma oficial</a> : <span className="unavailable">Aún no hay una opción autorizada verificada para esta región</span>}</div>
     </motion.div>}</AnimatePresence>
   </article>
 }
@@ -58,8 +62,10 @@ export default function App() {
   const [kind, setKind] = useState<'todo'|'pelicula'|'serie'>('todo')
   const [priority, setPriority] = useState<'todo'|Priority>('todo')
   const [hideWatched, setHideWatched] = useState(false)
+  const [region, setRegion] = useState<RegionCode>(() => (localStorage.getItem(REGION_KEY) as RegionCode) || 'latam')
   const [menu, setMenu] = useState(false)
   const reduceMotion = useReducedMotion()
+  useEffect(() => localStorage.setItem(REGION_KEY, region), [region])
   const required = watchlist.filter(i => i.priority !== 'opcional' && i.id !== 'avengers-doomsday')
   const done = required.filter(i => watched[i.id]).length
   const percent = Math.round(done / required.length * 100)
@@ -74,27 +80,27 @@ export default function App() {
   }), [kind, priority, hideWatched, watched, query])
 
   const share = async () => {
-    const data = { title: 'Ruta al Fin', text: `Llevo ${percent}% de mi ruta completada.`, url: location.href }
+    const data = { title: 'Maratón para Doomsday', text: `Llevo ${percent}% de mi maratón completada.`, url: location.href }
     if (navigator.share) await navigator.share(data)
     else await navigator.clipboard.writeText(location.href)
   }
 
   return <main>
     <nav>
-      <a className="brand" href="#inicio"><span>RUTA</span> AL FIN</a>
-      <div className="nav-links"><a href="#ruta">La ruta</a><a href="#proyecto">El proyecto</a><a className="support-link" href="https://ko-fi.com/" target="_blank" rel="noreferrer"><Heart weight="fill" /> Apoyar</a></div>
+      <a className="brand" href="#inicio"><span>MARATÓN</span> PARA DOOMSDAY</a>
+      <div className="nav-links"><a href="#ruta">El maratón</a><a href="#proyecto">El proyecto</a><a className="support-link" href={SUPPORT_URL} target="_blank" rel="noreferrer"><Heart weight="fill" /> Apoyar</a></div>
       <button className="menu-button" onClick={() => setMenu(!menu)} aria-label="Abrir menú">{menu ? <X/> : <Funnel/>}</button>
     </nav>
-    {menu && <div className="mobile-menu"><a href="#ruta">La ruta</a><a href="#proyecto">El proyecto</a><a href="https://ko-fi.com/">Apoyar</a></div>}
+    {menu && <div className="mobile-menu"><a href="#ruta">El maratón</a><a href="#proyecto">El proyecto</a><a href={SUPPORT_URL} target="_blank" rel="noreferrer">Apoyar</a></div>}
 
     <section className="hero" id="inicio">
       <img src="/hero-doomsday.png" alt="Ciudad bajo un fenómeno cósmico, arte original" fetchPriority="high" />
       <div className="hero-scrim" />
       <motion.div className="hero-copy" initial={reduceMotion ? false : {opacity:0,y:24}} animate={{opacity:1,y:0}} transition={{duration:.8}}>
-        <p className="eyebrow">Guía interactiva en español</p>
-        <h1>Todo conduce<br/><em>al fin.</em></h1>
-        <p className="hero-lead">Una ruta clara por películas y series para llegar preparado al próximo gran evento.</p>
-        <a className="primary" href="#ruta">Continuar la ruta <ArrowDown /></a>
+        <p className="eyebrow">El maratón latino del UCM</p>
+        <h1>Prepárate para<br/><em>Doomsday.</em></h1>
+        <p className="hero-lead">Un maratón claro por películas y series para llegar preparado al próximo gran evento.</p>
+        <a className="primary" href="#ruta">Continuar el maratón <ArrowDown /></a>
       </motion.div>
       <div className="hero-count"><Countdown/><span>Estreno previsto: 18 de diciembre de 2026</span></div>
     </section>
@@ -107,11 +113,12 @@ export default function App() {
     </section>
 
     <section className="route" id="ruta">
-      <header><h2>Tu ruta hacia el estreno</h2><p>Marca cada título al terminar. Abre una ficha para encontrar guiños sin spoilers y conexiones protegidas por advertencia.</p></header>
+      <header><h2>Tu maratón hacia el estreno</h2><p>Marca cada título al terminar. Abre una ficha para encontrar guiños sin spoilers y conexiones protegidas por advertencia.</p></header>
       <div className="controls">
         <label className="search"><MagnifyingGlass/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar un título" aria-label="Buscar un título"/></label>
         <select value={kind} onChange={e => setKind(e.target.value as typeof kind)} aria-label="Filtrar por formato"><option value="todo">Películas y series</option><option value="pelicula">Solo películas</option><option value="serie">Solo series</option></select>
         <select value={priority} onChange={e => setPriority(e.target.value as typeof priority)} aria-label="Filtrar por prioridad"><option value="todo">Toda prioridad</option><option value="esencial">Esencial</option><option value="recomendada">Recomendada</option><option value="opcional">Opcional</option></select>
+        <select value={region} onChange={e => setRegion(e.target.value as RegionCode)} aria-label="Seleccionar país"><option value="latam">Latinoamérica</option><option value="pe">Perú</option><option value="co">Colombia</option><option value="ec">Ecuador</option><option value="mx">México</option><option value="other">Otro país</option></select>
         <button className={hideWatched ? 'active' : ''} onClick={() => setHideWatched(!hideWatched)}>Ocultar vistos</button>
         <button onClick={share}><ShareNetwork/> Compartir</button>
       </div>
@@ -119,15 +126,15 @@ export default function App() {
       {sagas.map(saga => {
         const entries = visible.filter(i => i.saga === saga)
         if (!entries.length) return null
-        return <section className="saga" key={saga}><div className="saga-heading"><span>{String(sagas.indexOf(saga)+1).padStart(2,'0')}</span><h3>{saga}</h3><small>{entries.length} títulos</small></div><div>{entries.map(item => <div id={item.id} key={item.id}><WatchRow item={item} checked={!!watched[item.id]} onToggle={() => setWatched(prev => ({...prev,[item.id]:!prev[item.id]}))}/></div>)}</div></section>
+        return <section className="saga" key={saga}><div className="saga-heading"><span>{String(sagas.indexOf(saga)+1).padStart(2,'0')}</span><h3>{saga}</h3><small>{entries.length} títulos</small></div><div>{entries.map(item => <div id={item.id} key={item.id}><WatchRow item={item} region={region} checked={!!watched[item.id]} onToggle={() => setWatched(prev => ({...prev,[item.id]:!prev[item.id]}))}/></div>)}</div></section>
       })}
       {!visible.length && <div className="empty"><FilmSlate/><h3>No encontramos ese título</h3><p>Prueba con otro filtro o borra la búsqueda.</p></div>}
     </section>
 
     <section className="project" id="proyecto">
-      <div><h2>Una guía hecha por fans</h2><p>Ruta al Fin es gratuita, independiente y no está afiliada a Marvel, Disney, Sony ni sus subsidiarias. No alojamos copias de películas o series.</p></div>
-      <div className="project-action"><Heart weight="duotone"/><p>Tu apoyo ayuda a mantener el catálogo, la disponibilidad y la experiencia al día.</p><a href="https://ko-fi.com/" target="_blank" rel="noreferrer">Apoyar el proyecto</a></div>
+      <div><h2>Una guía hecha por fans</h2><p>Maratón para Doomsday es gratuito, independiente y pensado para la comunidad latina. No está afiliado a Marvel, Disney, Sony ni sus subsidiarias, y no aloja copias de películas o series.</p><p className="availability-note">Los enlaces de disponibilidad se revisan manualmente por país y solo dirigen a fuentes autorizadas, opciones gratuitas legítimas o promociones oficiales.</p></div>
+      <div className="project-action"><Heart weight="duotone"/><p>Tu apoyo ayuda a mantener el catálogo, verificar la disponibilidad regional y mejorar la experiencia.</p><a href={SUPPORT_URL} target="_blank" rel="noreferrer">Apoyar en Ko-fi</a></div>
     </section>
-    <footer><a className="brand" href="#inicio"><span>RUTA</span> AL FIN</a><p>Guía de visionado no oficial basada en información pública. Todos los títulos pertenecen a sus respectivos propietarios.</p><span>© {new Date().getFullYear()}</span></footer>
+    <footer><a className="brand" href="#inicio"><span>MARATÓN</span> PARA DOOMSDAY</a><p>Guía de visionado no oficial basada en información pública. Todos los títulos pertenecen a sus respectivos propietarios.</p><span>© {new Date().getFullYear()}</span></footer>
   </main>
 }
