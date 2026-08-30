@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUpRight, CaretDown, Check, Clock, FilmSlate, Heart, List, MagnifyingGlass, Play, ShareNetwork, Television, X } from '@phosphor-icons/react'
 import { AnimatePresence, motion, useReducedMotion, useScroll, useSpring } from 'motion/react'
 import { sagas, watchlist, type Priority, type RegionCode, type WatchItem } from './data'
@@ -9,6 +9,35 @@ const REGION_KEY = 'maraton-doomsday-region-v1'
 const SUPPORT_URL = 'https://ko-fi.com/falconblade'
 const regionNames: Record<RegionCode, string> = { latam:'Latinoamérica', pe:'Perú', co:'Colombia', ec:'Ecuador', mx:'México', other:'Otro país' }
 const justWatchRegions: Partial<Record<RegionCode, string>> = { pe:'pe', co:'co', ec:'ec', mx:'mx' }
+
+type FilterOption<T extends string> = { value: T; label: string }
+
+function FilterSelect<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: FilterOption<T>[]; onChange: (value: T) => void }) {
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(() => Math.max(0, options.findIndex(option => option.value === value)))
+  const activeIndexRef = useRef(activeIndex)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const selected = options.find(option => option.value === value) || options[0]
+  useEffect(() => {
+    const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false) }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [])
+  const moveActive = (index: number) => { activeIndexRef.current = index; setActiveIndex(index) }
+  const choose = (option: FilterOption<T>) => { onChange(option.value); moveActive(options.indexOf(option)); setOpen(false) }
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') { setOpen(false); return }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault(); setOpen(true)
+      moveActive((activeIndexRef.current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length)
+    }
+    if (event.key === 'Enter' && open) { event.preventDefault(); choose(options[activeIndexRef.current]) }
+  }
+  return <div className={`filter-select ${open ? 'is-open' : ''}`} ref={rootRef}>
+    <button type="button" className="filter-trigger" aria-label={label} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(state => !state)} onKeyDown={onKeyDown}><span>{selected.label}</span><CaretDown/></button>
+    <AnimatePresence>{open && <motion.div className="filter-options" role="listbox" aria-label={label} initial={{opacity:0,y:-8,scale:.98}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:-6,scale:.98}} transition={{duration:.18,ease:[.16,1,.3,1]}}>{options.map((option,index) => <button type="button" role="option" aria-selected={option.value === value} className={index === activeIndex ? 'is-active' : ''} key={option.value} onMouseEnter={() => moveActive(index)} onClick={() => choose(option)}><span>{option.label}</span>{option.value === value && <Check weight="bold"/>}</button>)}</motion.div>}</AnimatePresence>
+  </div>
+}
 
 function useStoredProgress() {
   const [watched, setWatched] = useState<Record<string, boolean>>(() => {
@@ -125,13 +154,14 @@ export default function App() {
       <div className="saga-nav" aria-label="Saltar a una saga">{sagas.map(saga => { const all = watchlist.filter(item => item.saga === saga); const completed = all.filter(item => watched[item.id]).length; return <a href={`#saga-${sagas.indexOf(saga)}`} key={saga}><span>{completed}/{all.length}</span>{saga}</a> })}</div>
       <div className="controls">
         <label className="search"><MagnifyingGlass/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar un título" aria-label="Buscar un título"/></label>
-        <select value={kind} onChange={e => setKind(e.target.value as typeof kind)} aria-label="Filtrar por formato"><option value="todo">Películas y series</option><option value="pelicula">Solo películas</option><option value="serie">Solo series</option></select>
-        <select value={priority} onChange={e => setPriority(e.target.value as typeof priority)} aria-label="Filtrar por prioridad"><option value="todo">Toda prioridad</option><option value="esencial">Esencial</option><option value="recomendada">Recomendada</option><option value="opcional">Opcional</option></select>
-        <select value={region} onChange={e => setRegion(e.target.value as RegionCode)} aria-label="Seleccionar país"><option value="latam">Latinoamérica</option><option value="pe">Perú</option><option value="co">Colombia</option><option value="ec">Ecuador</option><option value="mx">México</option><option value="other">Otro país</option></select>
+        <FilterSelect label="Filtrar por formato" value={kind} onChange={setKind} options={[{value:'todo',label:'Películas y series'},{value:'pelicula',label:'Solo películas'},{value:'serie',label:'Solo series'}]}/>
+        <FilterSelect label="Filtrar por prioridad" value={priority} onChange={setPriority} options={[{value:'todo',label:'Toda prioridad'},{value:'esencial',label:'Esencial'},{value:'recomendada',label:'Recomendada'},{value:'opcional',label:'Opcional'}]}/>
+        <FilterSelect label="Seleccionar país" value={region} onChange={setRegion} options={(Object.entries(regionNames) as [RegionCode,string][]).map(([value,label]) => ({value,label}))}/>
         <button className={hideWatched ? 'active' : ''} onClick={() => setHideWatched(!hideWatched)}>Ocultar vistos</button>
         <button onClick={share}><ShareNetwork/> Compartir</button>
         {filtersActive && <button className="reset-filters" onClick={resetFilters}><X/> Limpiar filtros</button>}
       </div>
+      <div className="filter-summary" aria-live="polite"><strong>{visible.length}</strong> {visible.length === 1 ? 'título visible' : 'títulos visibles'}{filtersActive && <span>Filtros activos</span>}</div>
       <div className="legend"><span><i className="essential"/> Esencial</span><span><i className="recommended"/> Recomendada</span><span><i className="optional"/> Opcional</span></div>
       {sagas.map(saga => {
         const entries = visible.filter(i => i.saga === saga)
