@@ -1,4 +1,4 @@
-const CACHE = 'maraton-doomsday-v3'
+const CACHE = 'maraton-doomsday-v4'
 
 self.addEventListener('install', event => {
   self.skipWaiting()

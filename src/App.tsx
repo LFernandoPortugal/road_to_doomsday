@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, Check, Clock, FilmSlate, Funnel, Heart, MagnifyingGlass, ShareNetwork, Television, X } from '@phosphor-icons/react'
+import { ArrowDown, ArrowUpRight, CaretDown, Check, Clock, FilmSlate, Funnel, Heart, MagnifyingGlass, Play, ShareNetwork, Television, X } from '@phosphor-icons/react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { sagas, watchlist, type Priority, type RegionCode, type WatchItem } from './data'
 
@@ -8,6 +8,7 @@ const STORAGE_KEY = 'ruta-al-fin-progress-v1'
 const REGION_KEY = 'maraton-doomsday-region-v1'
 const SUPPORT_URL = 'https://ko-fi.com/falconblade'
 const regionNames: Record<RegionCode, string> = { latam:'Latinoamérica', pe:'Perú', co:'Colombia', ec:'Ecuador', mx:'México', other:'Otro país' }
+const justWatchRegions: Partial<Record<RegionCode, string>> = { pe:'pe', co:'co', ec:'ec', mx:'mx' }
 
 function useStoredProgress() {
   const [watched, setWatched] = useState<Record<string, boolean>>(() => {
@@ -36,13 +37,14 @@ function WatchRow({ item, checked, onToggle, region }: { item: WatchItem; checke
   const [open, setOpen] = useState(false)
   const [showSpoilers, setShowSpoilers] = useState(false)
   const regionalLinks = item.watchLinks?.[region] || item.watchLinks?.latam || []
+  const justWatchRegion = justWatchRegions[region]
   return <article className={`watch-row ${checked ? 'is-watched' : ''}`}>
     <button className="check" onClick={onToggle} aria-label={checked ? `Marcar ${item.title} como pendiente` : `Marcar ${item.title} como vista`} aria-pressed={checked}>{checked && <Check weight="bold" />}</button>
     <button className="row-main" onClick={() => setOpen(!open)} aria-expanded={open}>
       <span className="row-index">{String(watchlist.indexOf(item) + 1).padStart(2,'0')}</span>
       <span className="row-title"><strong>{item.title}</strong>{item.latamTitle && item.latamTitle !== item.title && <small className="latam-title">En Latinoamérica: {item.latamTitle}</small>}<small>{item.year} · {item.minutes ? `${Math.floor(item.minutes/60)} h ${item.minutes%60} min` : 'Próximamente'}</small></span>
       <span className={`priority ${item.priority}`}>{item.priority}</span>
-      {item.kind === 'serie' ? <Television /> : <FilmSlate />}
+      <span className="row-format">{item.kind === 'serie' ? <Television /> : <FilmSlate />}<CaretDown className={open ? 'is-open' : ''}/></span>
     </button>
     <AnimatePresence initial={false}>{open && <motion.div className="row-detail" initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}>
       <p className="summary">{item.note}</p>
@@ -51,7 +53,7 @@ function WatchRow({ item, checked, onToggle, region }: { item: WatchItem; checke
         <button onClick={() => setShowSpoilers(!showSpoilers)} aria-expanded={showSpoilers}>{showSpoilers ? 'Ocultar conexión' : 'Revelar cómo conecta'} <span>Contiene spoilers</span></button>
         <AnimatePresence initial={false}>{showSpoilers && <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}><b>Cómo conecta</b><p>{item.tieIn}</p></motion.div>}</AnimatePresence>
       </div>}
-      <div className="availability"><b>Dónde ver en {regionNames[region]}</b>{regionalLinks.length ? <div>{regionalLinks.map(link => <a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.label} <span>{link.access}</span></a>)}</div> : item.watchUrl ? <a href={item.watchUrl} target="_blank" rel="noreferrer">Ver en plataforma oficial</a> : <span className="unavailable">Aún no hay una opción autorizada verificada para esta región</span>}</div>
+      <div className="availability"><b>Dónde ver en {regionNames[region]}</b>{regionalLinks.length ? <div>{regionalLinks.map(link => <a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.label} <span>{link.access}</span></a>)}</div> : item.watchUrl ? <a href={item.watchUrl} target="_blank" rel="noreferrer">Ver en plataforma oficial</a> : <><span className="unavailable">Aún no hay una opción autorizada verificada para esta región</span>{justWatchRegion && <a className="availability-check" href={`https://www.justwatch.com/${justWatchRegion}`} target="_blank" rel="noreferrer">Comprobar disponibilidad actual <ArrowUpRight/></a>}</>}</div>
     </motion.div>}</AnimatePresence>
   </article>
 }
@@ -109,11 +111,12 @@ export default function App() {
       <div className="progress-copy"><span>Tu avance</span><strong>{percent}%</strong></div>
       <div className="progress-track"><span style={{width:`${percent}%`}}/></div>
       <div className="stats"><div><b>{done}/{required.length}</b><span>vistos</span></div><div><b>{hoursLeft}</b><span>horas restantes</span></div><div><b>{Math.ceil(hoursLeft/weeksLeft)}</b><span>horas por semana</span></div></div>
-      {next && <a className="next" href={`#${next.id}`}>Siguiente: <b>{next.title}</b></a>}
+      {next && <a className="next-panel" href={`#${next.id}`}><span className="next-play"><Play weight="fill"/></span><span><small>Continúa tu maratón</small><b>{next.latamTitle || next.title}</b><em><Clock/> {Math.floor(next.minutes/60)} h {next.minutes%60} min</em></span><ArrowDown/></a>}
     </section>
 
     <section className="route" id="ruta">
       <header><h2>Tu maratón hacia el estreno</h2><p>Marca cada título al terminar. Abre una ficha para encontrar guiños sin spoilers y conexiones protegidas por advertencia.</p></header>
+      <div className="saga-nav" aria-label="Saltar a una saga">{sagas.map(saga => { const all = watchlist.filter(item => item.saga === saga); const completed = all.filter(item => watched[item.id]).length; return <a href={`#saga-${sagas.indexOf(saga)}`} key={saga}><span>{completed}/{all.length}</span>{saga}</a> })}</div>
       <div className="controls">
         <label className="search"><MagnifyingGlass/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar un título" aria-label="Buscar un título"/></label>
         <select value={kind} onChange={e => setKind(e.target.value as typeof kind)} aria-label="Filtrar por formato"><option value="todo">Películas y series</option><option value="pelicula">Solo películas</option><option value="serie">Solo series</option></select>
@@ -126,7 +129,9 @@ export default function App() {
       {sagas.map(saga => {
         const entries = visible.filter(i => i.saga === saga)
         if (!entries.length) return null
-        return <section className="saga" key={saga}><div className="saga-heading"><span>{String(sagas.indexOf(saga)+1).padStart(2,'0')}</span><h3>{saga}</h3><small>{entries.length} títulos</small></div><div>{entries.map(item => <div id={item.id} key={item.id}><WatchRow item={item} region={region} checked={!!watched[item.id]} onToggle={() => setWatched(prev => ({...prev,[item.id]:!prev[item.id]}))}/></div>)}</div></section>
+        const sagaAll = watchlist.filter(item => item.saga === saga)
+        const sagaDone = sagaAll.filter(item => watched[item.id]).length
+        return <section className="saga" id={`saga-${sagas.indexOf(saga)}`} key={saga}><div className="saga-heading"><span>{String(sagas.indexOf(saga)+1).padStart(2,'0')}</span><h3>{saga}</h3><small>{sagaDone}/{sagaAll.length} vistos</small></div><div className="saga-progress" aria-label={`${sagaDone} de ${sagaAll.length} vistos`}><span style={{width:`${sagaDone/sagaAll.length*100}%`}}/></div><div>{entries.map(item => <div id={item.id} key={item.id}><WatchRow item={item} region={region} checked={!!watched[item.id]} onToggle={() => setWatched(prev => ({...prev,[item.id]:!prev[item.id]}))}/></div>)}</div></section>
       })}
       {!visible.length && <div className="empty"><FilmSlate/><h3>No encontramos ese título</h3><p>Prueba con otro filtro o borra la búsqueda.</p></div>}
     </section>
@@ -135,6 +140,6 @@ export default function App() {
       <div><h2>Una guía hecha por fans</h2><p>Maratón para Doomsday es gratuito, independiente y pensado para la comunidad latina. No está afiliado a Marvel, Disney, Sony ni sus subsidiarias, y no aloja copias de películas o series.</p><p className="availability-note">Los enlaces de disponibilidad se revisan manualmente por país y solo dirigen a fuentes autorizadas, opciones gratuitas legítimas o promociones oficiales.</p></div>
       <div className="project-action"><Heart weight="duotone"/><p>Tu apoyo ayuda a mantener el catálogo, verificar la disponibilidad regional y mejorar la experiencia.</p><a href={SUPPORT_URL} target="_blank" rel="noreferrer">Apoyar en Ko-fi</a></div>
     </section>
-    <footer><a className="brand" href="#inicio"><span>MARATÓN</span> PARA DOOMSDAY</a><p>Guía de visionado no oficial basada en información pública. Todos los títulos pertenecen a sus respectivos propietarios.</p><span>© {new Date().getFullYear()}</span></footer>
+    <footer><a className="brand" href="#inicio"><span>MARATÓN</span> PARA DOOMSDAY</a><div><p>Guía de visionado no oficial basada en información pública. Todos los títulos pertenecen a sus respectivos propietarios.</p><nav className="footer-links"><a href="/metodologia">Metodología</a><a href="/preguntas-frecuentes">Preguntas frecuentes</a><a href="/privacidad">Privacidad</a><a href="/aviso-legal">Aviso legal</a></nav></div><span>© {new Date().getFullYear()}</span></footer>
   </main>
 }
