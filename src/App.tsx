@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUpRight, CaretDown, Check, Clock, FilmSlate, Funnel, Heart, MagnifyingGlass, Play, ShareNetwork, Television, X } from '@phosphor-icons/react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { ArrowDown, ArrowUpRight, CaretDown, Check, Clock, FilmSlate, Heart, List, MagnifyingGlass, Play, ShareNetwork, Television, X } from '@phosphor-icons/react'
+import { AnimatePresence, motion, useReducedMotion, useScroll, useSpring } from 'motion/react'
 import { sagas, watchlist, type Priority, type RegionCode, type WatchItem } from './data'
 
 const RELEASE = new Date('2026-12-18T00:00:00-05:00')
@@ -67,6 +67,8 @@ export default function App() {
   const [region, setRegion] = useState<RegionCode>(() => (localStorage.getItem(REGION_KEY) as RegionCode) || 'latam')
   const [menu, setMenu] = useState(false)
   const reduceMotion = useReducedMotion()
+  const { scrollYProgress } = useScroll()
+  const pageProgress = useSpring(scrollYProgress, { stiffness: 120, damping: 28, mass: .25 })
   useEffect(() => localStorage.setItem(REGION_KEY, region), [region])
   const required = watchlist.filter(i => i.priority !== 'opcional' && i.id !== 'avengers-doomsday')
   const done = required.filter(i => watched[i.id]).length
@@ -87,13 +89,17 @@ export default function App() {
     else await navigator.clipboard.writeText(location.href)
   }
 
+  const filtersActive = Boolean(query || kind !== 'todo' || priority !== 'todo' || hideWatched)
+  const resetFilters = () => { setQuery(''); setKind('todo'); setPriority('todo'); setHideWatched(false) }
+
   return <main>
-    <nav>
+    <motion.div className="page-progress" style={{ scaleX: pageProgress }} aria-hidden="true" />
+    <nav className="site-nav">
       <a className="brand" href="#inicio"><span>MARATÓN</span> PARA DOOMSDAY</a>
       <div className="nav-links"><a href="#ruta">El maratón</a><a href="#proyecto">El proyecto</a><a className="support-link" href={SUPPORT_URL} target="_blank" rel="noreferrer"><Heart weight="fill" /> Apoyar</a></div>
-      <button className="menu-button" onClick={() => setMenu(!menu)} aria-label="Abrir menú">{menu ? <X/> : <Funnel/>}</button>
+      <button className="menu-button" onClick={() => setMenu(!menu)} aria-label={menu ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menu}>{menu ? <X/> : <List/>}</button>
     </nav>
-    {menu && <div className="mobile-menu"><a href="#ruta">El maratón</a><a href="#proyecto">El proyecto</a><a href={SUPPORT_URL} target="_blank" rel="noreferrer">Apoyar</a></div>}
+    <AnimatePresence>{menu && <motion.div className="mobile-menu" initial={{opacity:0,y:-8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}}><a href="#ruta" onClick={() => setMenu(false)}>El maratón</a><a href="#proyecto" onClick={() => setMenu(false)}>El proyecto</a><a href={SUPPORT_URL} target="_blank" rel="noreferrer">Apoyar</a></motion.div>}</AnimatePresence>
 
     <section className="hero" id="inicio">
       <img src="/hero-doomsday.png" alt="Ciudad bajo un fenómeno cósmico, arte original" fetchPriority="high" />
@@ -124,6 +130,7 @@ export default function App() {
         <select value={region} onChange={e => setRegion(e.target.value as RegionCode)} aria-label="Seleccionar país"><option value="latam">Latinoamérica</option><option value="pe">Perú</option><option value="co">Colombia</option><option value="ec">Ecuador</option><option value="mx">México</option><option value="other">Otro país</option></select>
         <button className={hideWatched ? 'active' : ''} onClick={() => setHideWatched(!hideWatched)}>Ocultar vistos</button>
         <button onClick={share}><ShareNetwork/> Compartir</button>
+        {filtersActive && <button className="reset-filters" onClick={resetFilters}><X/> Limpiar filtros</button>}
       </div>
       <div className="legend"><span><i className="essential"/> Esencial</span><span><i className="recommended"/> Recomendada</span><span><i className="optional"/> Opcional</span></div>
       {sagas.map(saga => {
@@ -131,7 +138,7 @@ export default function App() {
         if (!entries.length) return null
         const sagaAll = watchlist.filter(item => item.saga === saga)
         const sagaDone = sagaAll.filter(item => watched[item.id]).length
-        return <section className="saga" id={`saga-${sagas.indexOf(saga)}`} key={saga}><div className="saga-heading"><span>{String(sagas.indexOf(saga)+1).padStart(2,'0')}</span><h3>{saga}</h3><small>{sagaDone}/{sagaAll.length} vistos</small></div><div className="saga-progress" aria-label={`${sagaDone} de ${sagaAll.length} vistos`}><span style={{width:`${sagaDone/sagaAll.length*100}%`}}/></div><div>{entries.map(item => <div id={item.id} key={item.id}><WatchRow item={item} region={region} checked={!!watched[item.id]} onToggle={() => setWatched(prev => ({...prev,[item.id]:!prev[item.id]}))}/></div>)}</div></section>
+        return <motion.section className="saga" id={`saga-${sagas.indexOf(saga)}`} key={saga} initial={reduceMotion ? false : {opacity:0,y:18}} whileInView={{opacity:1,y:0}} viewport={{once:true,amount:.04}} transition={{duration:.45}}><div className="saga-heading"><h3>{saga}</h3><small>{sagaDone}/{sagaAll.length} vistos</small></div><div className="saga-progress" aria-label={`${sagaDone} de ${sagaAll.length} vistos`}><span style={{width:`${sagaDone/sagaAll.length*100}%`}}/></div><div>{entries.map(item => <div id={item.id} key={item.id}><WatchRow item={item} region={region} checked={!!watched[item.id]} onToggle={() => setWatched(prev => ({...prev,[item.id]:!prev[item.id]}))}/></div>)}</div></motion.section>
       })}
       {!visible.length && <div className="empty"><FilmSlate/><h3>No encontramos ese título</h3><p>Prueba con otro filtro o borra la búsqueda.</p></div>}
     </section>
