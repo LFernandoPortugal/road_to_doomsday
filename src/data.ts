@@ -146,6 +146,15 @@ const extras: Record<string, Extra> = {
   'avengers-doomsday': { latamTitle:'Avengers: Doomsday', watchFor:'La guía se actualizará con una sección sin spoilers cuando exista información oficial suficiente.', tieIn:'Es el destino de esta ruta y el puente previsto hacia Avengers: Secret Wars.' }
 }
 
-export const watchlist: WatchItem[] = baseWatchlist.map(item => ({ ...item, ...extras[item.id] }))
+// Enlaces manuales externos. Usa el ID de cada título y conserva solo fuentes autorizadas.
+// Ejemplo:
+// 'iron-man': {
+//   watchUrl: 'https://plataforma.example/iron-man',
+//   watchLinks: { pe: [{ label:'Plataforma', url:'https://...', access:'suscripcion' }] }
+// }
+const manualLinks: Record<string, Partial<Pick<WatchItem, 'watchUrl' | 'watchLinks'>>> = {
+}
+
+export const watchlist: WatchItem[] = baseWatchlist.map(item => ({ ...item, ...extras[item.id], ...manualLinks[item.id] }))
 
 export const sagas = [...new Set(watchlist.map(item => item.saga))]
