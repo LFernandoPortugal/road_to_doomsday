@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUpRight, CaretDown, Check, Clock, FilmSlate, Heart, List, MagnifyingGlass, Play, ShareNetwork, Television, X } from '@phosphor-icons/react'
+import { ArrowDown, ArrowUpRight, CaretDown, Check, Clock, FilmSlate, Heart, Lightning, List, MagnifyingGlass, Play, ShareNetwork, Television, X } from '@phosphor-icons/react'
 import { AnimatePresence, motion, useReducedMotion, useScroll, useSpring } from 'motion/react'
 import { sagas, watchlist, type Priority, type RegionCode, type WatchItem } from './data'
 
@@ -9,6 +9,13 @@ const REGION_KEY = 'maraton-doomsday-region-v1'
 const SUPPORT_URL = 'https://ko-fi.com/falconblade'
 const regionNames: Record<RegionCode, string> = { latam:'Latinoamérica', pe:'Perú', co:'Colombia', ec:'Ecuador', mx:'México', other:'Otro país' }
 const justWatchRegions: Partial<Record<RegionCode, string>> = { pe:'pe', co:'co', ec:'ec', mx:'mx' }
+type MarathonMode = 'personalizado' | 'esencial' | 'recomendado' | 'completo' | 'peliculas'
+const marathonModes: { value: MarathonMode; label: string; description: string }[] = [
+  { value:'esencial', label:'Esencial', description:'La historia indispensable' },
+  { value:'recomendado', label:'Recomendado', description:'Más contexto, sin extras' },
+  { value:'completo', label:'Completo', description:'Todo el catálogo' },
+  { value:'peliculas', label:'Solo películas', description:'Sin temporadas' }
+]
 
 type FilterOption<T extends string> = { value: T; label: string }
 
@@ -47,6 +54,15 @@ function useStoredProgress() {
   return [watched, setWatched] as const
 }
 
+function useLocalMedia() {
+  const [media, setMedia] = useState<Record<string,string>>({})
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    fetch('/media-links.local.json').then(response => response.ok ? response.json() : {}).then(setMedia).catch(() => setMedia({}))
+  }, [])
+  return media
+}
+
 function Countdown() {
   const [remaining, setRemaining] = useState(() => Math.max(0, RELEASE.getTime() - Date.now()))
   useEffect(() => {
@@ -62,7 +78,7 @@ function Countdown() {
   </div>
 }
 
-function WatchRow({ item, checked, onToggle, region }: { item: WatchItem; checked: boolean; onToggle: () => void; region: RegionCode }) {
+function WatchRow({ item, checked, onToggle, region, localMediaUrl }: { item: WatchItem; checked: boolean; onToggle: () => void; region: RegionCode; localMediaUrl?: string }) {
   const [open, setOpen] = useState(false)
   const [showSpoilers, setShowSpoilers] = useState(false)
   const regionalLinks = item.watchLinks?.[region] || item.watchLinks?.latam || []
@@ -82,6 +98,7 @@ function WatchRow({ item, checked, onToggle, region }: { item: WatchItem; checke
         <button onClick={() => setShowSpoilers(!showSpoilers)} aria-expanded={showSpoilers}>{showSpoilers ? 'Ocultar conexión' : 'Revelar cómo conecta'} <span>Contiene spoilers</span></button>
         <AnimatePresence initial={false}>{showSpoilers && <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}}><b>Cómo conecta</b><p>{item.tieIn}</p></motion.div>}</AnimatePresence>
       </div>}
+      {localMediaUrl && <div className="local-player"><b>Biblioteca personal</b><video controls preload="metadata" src={localMediaUrl}>Tu navegador no puede reproducir este archivo.</video></div>}
       <div className="availability"><b>Dónde ver en {regionNames[region]}</b>{regionalLinks.length ? <div>{regionalLinks.map(link => <a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.label} <span>{link.access}</span></a>)}</div> : item.watchUrl ? <a href={item.watchUrl} target="_blank" rel="noreferrer">Ver en plataforma oficial</a> : <><span className="unavailable">Aún no hay una opción autorizada verificada para esta región</span>{justWatchRegion && <a className="availability-check" href={`https://www.justwatch.com/${justWatchRegion}`} target="_blank" rel="noreferrer">Comprobar disponibilidad actual <ArrowUpRight/></a>}</>}</div>
     </motion.div>}</AnimatePresence>
   </article>
@@ -89,6 +106,8 @@ function WatchRow({ item, checked, onToggle, region }: { item: WatchItem; checke
 
 export default function App() {
   const [watched, setWatched] = useStoredProgress()
+  const localMedia = useLocalMedia()
+  const [marathonMode, setMarathonMode] = useState<MarathonMode>('recomendado')
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<'todo'|'pelicula'|'serie'>('todo')
   const [priority, setPriority] = useState<'todo'|Priority>('todo')
@@ -106,11 +125,14 @@ export default function App() {
   const weeksLeft = Math.max(1, Math.ceil((RELEASE.getTime() - Date.now()) / 604800000))
   const next = required.find(i => !watched[i.id])
   const visible = useMemo(() => watchlist.filter(item => {
+    if (marathonMode === 'esencial' && item.priority !== 'esencial') return false
+    if (marathonMode === 'recomendado' && item.priority === 'opcional') return false
+    if (marathonMode === 'peliculas' && item.kind !== 'pelicula') return false
     if (kind !== 'todo' && item.kind !== kind) return false
     if (priority !== 'todo' && item.priority !== priority) return false
     if (hideWatched && watched[item.id]) return false
     return item.title.toLowerCase().includes(query.toLowerCase())
-  }), [kind, priority, hideWatched, watched, query])
+  }), [marathonMode, kind, priority, hideWatched, watched, query])
 
   const share = async () => {
     const data = { title: 'Maratón para Doomsday', text: `Llevo ${percent}% de mi maratón completada.`, url: location.href }
@@ -118,8 +140,9 @@ export default function App() {
     else await navigator.clipboard.writeText(location.href)
   }
 
-  const filtersActive = Boolean(query || kind !== 'todo' || priority !== 'todo' || hideWatched)
-  const resetFilters = () => { setQuery(''); setKind('todo'); setPriority('todo'); setHideWatched(false) }
+  const filtersActive = Boolean(query || marathonMode !== 'recomendado' || kind !== 'todo' || priority !== 'todo' || hideWatched)
+  const resetFilters = () => { setQuery(''); setMarathonMode('recomendado'); setKind('todo'); setPriority('todo'); setHideWatched(false) }
+  const applyMode = (mode: MarathonMode) => { setMarathonMode(mode); setKind('todo'); setPriority('todo'); setHideWatched(false) }
 
   return <main>
     <motion.div className="page-progress" style={{ scaleX: pageProgress }} aria-hidden="true" />
@@ -152,10 +175,11 @@ export default function App() {
     <section className="route" id="ruta">
       <header><h2>Tu maratón hacia el estreno</h2><p>Marca cada título al terminar. Abre una ficha para encontrar guiños sin spoilers y conexiones protegidas por advertencia.</p></header>
       <div className="saga-nav" aria-label="Saltar a una saga">{sagas.map(saga => { const all = watchlist.filter(item => item.saga === saga); const completed = all.filter(item => watched[item.id]).length; return <a href={`#saga-${sagas.indexOf(saga)}`} key={saga}><span>{completed}/{all.length}</span>{saga}</a> })}</div>
+      <div className="marathon-modes"><div className="mode-intro"><Lightning weight="fill"/><span><b>Elige tu ruta</b><small>Puedes ajustar los filtros después</small></span></div>{marathonModes.map(mode => <button className={marathonMode === mode.value ? 'active' : ''} aria-pressed={marathonMode === mode.value} onClick={() => applyMode(mode.value)} key={mode.value}><b>{mode.label}</b><small>{mode.description}</small></button>)}</div>
       <div className="controls">
         <label className="search"><MagnifyingGlass/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar un título" aria-label="Buscar un título"/></label>
-        <FilterSelect label="Filtrar por formato" value={kind} onChange={setKind} options={[{value:'todo',label:'Películas y series'},{value:'pelicula',label:'Solo películas'},{value:'serie',label:'Solo series'}]}/>
-        <FilterSelect label="Filtrar por prioridad" value={priority} onChange={setPriority} options={[{value:'todo',label:'Toda prioridad'},{value:'esencial',label:'Esencial'},{value:'recomendada',label:'Recomendada'},{value:'opcional',label:'Opcional'}]}/>
+        <FilterSelect label="Filtrar por formato" value={kind} onChange={value => { setKind(value); setMarathonMode('personalizado') }} options={[{value:'todo',label:'Películas y series'},{value:'pelicula',label:'Solo películas'},{value:'serie',label:'Solo series'}]}/>
+        <FilterSelect label="Filtrar por prioridad" value={priority} onChange={value => { setPriority(value); setMarathonMode('personalizado') }} options={[{value:'todo',label:'Toda prioridad'},{value:'esencial',label:'Esencial'},{value:'recomendada',label:'Recomendada'},{value:'opcional',label:'Opcional'}]}/>
         <FilterSelect label="Seleccionar país" value={region} onChange={setRegion} options={(Object.entries(regionNames) as [RegionCode,string][]).map(([value,label]) => ({value,label}))}/>
         <button className={hideWatched ? 'active' : ''} onClick={() => setHideWatched(!hideWatched)}>Ocultar vistos</button>
         <button onClick={share}><ShareNetwork/> Compartir</button>
@@ -168,7 +192,7 @@ export default function App() {
         if (!entries.length) return null
         const sagaAll = watchlist.filter(item => item.saga === saga)
         const sagaDone = sagaAll.filter(item => watched[item.id]).length
-        return <motion.section className="saga" id={`saga-${sagas.indexOf(saga)}`} key={saga} initial={reduceMotion ? false : {opacity:0,y:18}} whileInView={{opacity:1,y:0}} viewport={{once:true,amount:.04}} transition={{duration:.45}}><div className="saga-heading"><h3>{saga}</h3><small>{sagaDone}/{sagaAll.length} vistos</small></div><div className="saga-progress" aria-label={`${sagaDone} de ${sagaAll.length} vistos`}><span style={{width:`${sagaDone/sagaAll.length*100}%`}}/></div><div>{entries.map(item => <div id={item.id} key={item.id}><WatchRow item={item} region={region} checked={!!watched[item.id]} onToggle={() => setWatched(prev => ({...prev,[item.id]:!prev[item.id]}))}/></div>)}</div></motion.section>
+        return <motion.section className="saga" id={`saga-${sagas.indexOf(saga)}`} key={saga} initial={reduceMotion ? false : {opacity:0,y:18}} whileInView={{opacity:1,y:0}} viewport={{once:true,amount:.04}} transition={{duration:.45}}><div className="saga-heading"><h3>{saga}</h3><small>{sagaDone}/{sagaAll.length} vistos</small></div><div className="saga-progress" aria-label={`${sagaDone} de ${sagaAll.length} vistos`}><span style={{width:`${sagaDone/sagaAll.length*100}%`}}/></div><div>{entries.map(item => <div id={item.id} key={item.id}><WatchRow item={item} region={region} localMediaUrl={localMedia[item.id]} checked={!!watched[item.id]} onToggle={() => setWatched(prev => ({...prev,[item.id]:!prev[item.id]}))}/></div>)}</div></motion.section>
       })}
       {!visible.length && <div className="empty"><FilmSlate/><h3>No encontramos ese título</h3><p>Prueba con otro filtro o borra la búsqueda.</p></div>}
     </section>

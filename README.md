@@ -26,3 +26,23 @@ No es recomendable usar Google Drive para servir películas comerciales: los enl
 - Revisar años, duraciones y prioridad editorial.
 - Añadir enlaces oficiales por título y país cuando estén disponibles.
 - Conectar dominio y analítica respetuosa de privacidad si se desea.
+# Reproducción de archivos locales
+
+Esta función solo se activa con `npm run dev` y no publica tus archivos en Vercel.
+
+1. Crea la carpeta `public/media/`.
+2. Copia allí tus videos, por ejemplo `public/media/iron-man.mp4`.
+3. Copia `public/media-links.example.json` como `public/media-links.local.json`.
+4. Relaciona el ID del título con su ruta. Los IDs están en `src/data.ts`.
+5. Ejecuta `npm run dev` y abre la ficha del título. Aparecerá el reproductor "Biblioteca personal".
+
+Ejemplo:
+
+```json
+{
+  "iron-man": "/media/iron-man.mp4",
+  "loki-1": "/media/loki-temporada-1.mp4"
+}
+```
+
+Las carpetas y el archivo local están incluidos en `.gitignore` para evitar subir videos o rutas personales por accidente.
